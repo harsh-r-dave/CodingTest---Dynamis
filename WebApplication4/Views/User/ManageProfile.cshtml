@@ -1,0 +1,93 @@
+﻿@model WebApplication4.Models.UserModel
+@{
+    ViewData["Title"] = "Manage Profile";
+}
+<h2>Manage Profile</h2>
+<h4>@ViewBag.UserID</h4>
+
+<div class="alert-info col-md-4">
+    <p class="text-info">
+        @ViewBag.Message
+    </p>
+</div>
+
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="ManageProfile">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <input type="hidden" asp-for="ID" />
+
+            <div class="form-group">
+                <label asp-for="acc_type" class="control-label"></label>
+                @Html.DropDownList("acc_type", ViewBag.AccType as SelectList, "Select Account Type", new { @class = "form-control" })
+            </div>
+            <script src="~/lib/jquery/dist/jquery.js"></script>
+            <script>
+                $(document).ready(function () {
+                    var acc_type = $("#acc_type Option:Selected").text();
+
+                    if (acc_type == "Business") {
+                        $("#BusinessView").show();
+                        $("#PersonalView").hide();
+                    }
+                    else {
+                        $("#PersonalView").show();
+                        $("#BusinessView").hide();
+                    }
+                    $("#acc_type").change(function () {
+                        var acc_type = $("#acc_type Option:Selected").text();
+
+                        if (acc_type == "Business") {
+                            $("#BusinessView").show();
+                            $("#PersonalView").hide();
+                        }
+                        else {
+                            $("#PersonalView").show();
+                            $("#BusinessView").hide();
+                        }
+                    })
+
+                })
+            </script>
+            <div id="BusinessView">
+                <div class="form-group">
+                    <label asp-for="CompanyName" class="control-label"></label>
+                    <input asp-for="CompanyName" class="form-control" />
+                    <span asp-validation-for="CompanyName" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div id="PersonalView">
+                <div class="form-group">
+                    <label asp-for="FirstName" class="control-label"></label>
+                    <input asp-for="FirstName" class="form-control" />
+                    <span asp-validation-for="FirstName" class="text-danger"></span>
+                </div>
+                <div class="form-group">
+                    <label asp-for="LastName" class="control-label"></label>
+                    <input asp-for="LastName" class="form-control" />
+                    <span asp-validation-for="LastName" class="text-danger"></span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label asp-for="ProfilePicture" class="control-label"></label>
+                <input type="file" asp-for="ProfilePicture" class="form-control" accept="image/*" />
+                <span asp-validation-for="ProfilePicture" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="BirthDate" class="control-label"></label>
+                <input asp-for="BirthDate" class="form-control" />
+                <span asp-validation-for="BirthDate" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Email" class="control-label"></label>
+                <input asp-for="Email" class="form-control" />
+                <span asp-validation-for="Email" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <input type="submit" value="Update" class="btn btn-default" />
+            </div>
+        </form>
+    </div>
+</div>
