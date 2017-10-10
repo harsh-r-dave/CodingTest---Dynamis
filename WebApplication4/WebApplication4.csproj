@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <Folder Include="Models\NewFolder\" />
+    <Folder Include="wwwroot\ProfilePicture\" />
   </ItemGroup>
 
 </Project>

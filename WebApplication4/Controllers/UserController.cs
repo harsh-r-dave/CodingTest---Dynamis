@@ -3,8 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
+using System.Web;
 using WebApplication4.Data;
 using WebApplication4.Models;
 
@@ -13,6 +17,9 @@ namespace WebApplication4.Controllers
     public class UserController : Controller
     {
         private readonly ApplicationDbContext _context;
+
+        // CREATE INSTANCE OF PASSWORD_MANAGER CLASS
+        PasswordManager pwdManager = new PasswordManager();
 
         // VARIABLES TO STORE SESSION VALUES
         const string SessionKeyUserID = "_UserID";
@@ -65,8 +72,8 @@ namespace WebApplication4.Controllers
             ViewBag.AccType = new SelectList(AccTypeList, "Business");
 
             // FETCH THE SELECTED ACCOUNT TYPE FROM DROPDOWN LIST
-            string SelectedAccType = Request.Form["acc_type"].ToString();
-            if (SelectedAccType == "Business")
+            string selectedAccType = Request.Form["acc_type"].ToString();
+            if (selectedAccType == "Business")
             {
                 userModel.FirstName = "";
                 userModel.LastName = "";
@@ -85,7 +92,8 @@ namespace WebApplication4.Controllers
                               where e.Email == userModel.Email
                               select e.Email;
 
-                if (userModel.Email == DbEmail.FirstOrDefault())
+                // COMPARE EMAIL ADDRESS IGNORING CASES, RETURN 0 IF BOTH ARE SAME
+                if (string.Compare(userModel.Email, DbEmail.FirstOrDefault(), true) == 0)
                 {
                     ViewBag.Message = "Email address already exists.";
                     return View();
@@ -93,15 +101,33 @@ namespace WebApplication4.Controllers
                 else
                 {
                     // CHECK FOR USER'S AGE (18 YEARS ~ 6575 DAYS)
-                    var Age = AgeSpan(userModel.BirthDate);
+                    var age = AgeSpan(userModel.BirthDate);
 
-                    if (Math.Ceiling(Age) <= 6575)
+                    if (Math.Ceiling(age) <= 6575)
                     {
                         ViewBag.Message = "You should be 18 years or older to register.";
                         return View();
                     }
                     else
                     {
+
+
+                        // SAVE PROFILE PICTURE
+                        /*
+                        string fileName = Path.GetFileNameWithoutExtension(userModel.ProfilePicture.ToString());
+                        string extension = Path.GetExtension(userModel.ProfilePicture.ToString());
+
+                        fileName = fileName + DateTime.Now.ToString("yymmssfff") + extension;
+                        userModel.FirstName = "~/wwwroot/ProfilePictures" + fileName;
+                        fileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory + "/wwwroot/ProfilePictures", fileName);
+                        userModel.ProfilePicture = fileName.ToString();
+                        */
+
+                        // SALT AND HASH PASSWORD BEFORE SAVING TO DATABASE
+                        String passwordHash = pwdManager.GeneratePasswordHash(userModel.Password, out string salt);
+                        userModel.PasswordHash = passwordHash;
+                        userModel.PasswordSalt = salt;
+
                         // SET THE SESSION VALUE AND REGISTER USER
                         HttpContext.Session.SetString(SessionKeyUserEmail, userModel.Email);
                         _context.Add(userModel);
@@ -114,9 +140,9 @@ namespace WebApplication4.Controllers
 
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                ViewBag.Message = "Something went wrong.";
+                ViewBag.Message = e.ToString(); // "Something went wrong.";
                 return View();
 
             }
@@ -137,18 +163,34 @@ namespace WebApplication4.Controllers
         [AutoValidateAntiforgeryToken]
         public IActionResult Login(UserModel userModel)
         {
+            // 
             // COMPARE EMAIL AND PASSWORD WITH DATABASE VALUES RESPECTING THE CASE
-            var login = _context.UserModel
-                .Where(u => string.Equals(u.Email, userModel.Email, StringComparison.CurrentCultureIgnoreCase) && string.Equals(u.Password, userModel.Password, StringComparison.CurrentCulture))
-                .FirstOrDefault();
-            if (login != null)
-            {
-                // IF USER IS REGISTERED, SAVE SESSION VALUES AND LOG IN
-                HttpContext.Session.SetString(SessionKeyUserID, login.ID.ToString());
-                HttpContext.Session.SetString(SessionKeyUserEmail, userModel.Email);
+            //var login = _context.UserModel
+            //    .Where(u => string.Equals(u.Email, userModel.Email, StringComparison.CurrentCultureIgnoreCase) && string.Equals(u.Password, userModel.Password, StringComparison.CurrentCulture))
+            //    .FirstOrDefault();
 
-                // REDIRECT TO APPLICATION HOME PAGE
-                return RedirectToAction("Index", "Home");
+            var dbUser = _context.UserModel
+                .Where(u => string.Equals(u.Email, userModel.Email, StringComparison.CurrentCultureIgnoreCase))
+                .FirstOrDefault();
+
+            if (dbUser != null)
+            {
+                // IF USER EXISTS, CHECK FOR THE PASSWORD
+                bool isPasswordCorrect = pwdManager.IsPasswordMatch(userModel.Password, dbUser.PasswordSalt, dbUser.PasswordHash);
+
+                if (isPasswordCorrect)
+                {
+                    // IF USER IS REGISTERED, SAVE SESSION VALUES AND LOG IN
+                    HttpContext.Session.SetString(SessionKeyUserID, dbUser.ID.ToString());
+                    HttpContext.Session.SetString(SessionKeyUserEmail, userModel.Email);
+
+                    // REDIRECT TO APPLICATION HOME PAGE
+                    return RedirectToAction("Index", "Home");
+                }
+                else
+                {
+                    ModelState.AddModelError("", "Username or Password incorrect.");
+                }
             }
             else
             {
@@ -202,14 +244,20 @@ namespace WebApplication4.Controllers
             ViewBag.AccType = new SelectList(AccTypeList, userModel.acc_type);
 
             // USER IS NOT ALLOWED TO UPATE PASSWORD,
-            // SO FETCH REGISTERED PASSWORD FROM DATABASE,
+            // SO FETCH REGISTERED PASSWORD DETAILS FROM DATABASE,
             // AND STORE IT INTO USERMODEL
             // TO AVOID NULL UPDATION TO PASSWORD FIELD
-            var DbPassword = from e in _context.UserModel
-                             where e.ID == Convert.ToInt32(UserID)
-                             select e.Password;
-            userModel.Password = DbPassword.First();
+            var DbPasswordSalt = from e in _context.UserModel
+                                 where (e.ID == Convert.ToInt32(UserID))
+                                 select e.PasswordSalt;
+            var DbPasswordHash = from e in _context.UserModel
+                                 where (e.ID == Convert.ToInt32(UserID))
+                                 select e.PasswordHash;
+            userModel.PasswordHash = DbPasswordHash.FirstOrDefault();
+            userModel.PasswordSalt = DbPasswordSalt.FirstOrDefault();
 
+
+            // IF USER DOESN'T EXIST IN DATABASE
             if (UserID != userModel.ID.ToString())
             {
                 return NotFound();
@@ -241,7 +289,10 @@ namespace WebApplication4.Controllers
 
                 if (userModel.Email == DbEmail.FirstOrDefault())
                 {
+                    // SEND SESSION INFO TO CONTROL THE VIEW
+                    ViewBag.UserID = HttpContext.Session.GetString(SessionKeyUserEmail);
                     ViewBag.Message = "Email address already exists.";
+                    ViewBag.MessageCssClass = "alert-info col-md-4";
                     return View();
                 }
                 else
@@ -252,6 +303,7 @@ namespace WebApplication4.Controllers
                     if (Math.Ceiling(Age) <= 6575)
                     {
                         ViewBag.Message = "You should be 18 years or older to register.";
+                        ViewBag.MessageCssClass = "alert-danger col-md-4";
                         return View();
                     }
                     else
@@ -263,10 +315,12 @@ namespace WebApplication4.Controllers
 
                         _context.Update(userModel);
                         await _context.SaveChangesAsync();
+                        ViewBag.MessageCssClass = "alert-info col-md-4";
                         ViewBag.Message = "Record updated.";
 
                         // SEND SESSION INFO TO CONTROL THE VIEW
                         ViewBag.UserID = HttpContext.Session.GetString(SessionKeyUserEmail);
+                        ViewBag.MessageCssClass = "";
                         return View(userModel);
                     }
                 }
@@ -275,6 +329,7 @@ namespace WebApplication4.Controllers
             {
                 //ViewBag.Message = e.ToString();
                 ViewBag.Message = "Something went wrong.";
+                ViewBag.MessageCssClass = "alert-danger col-md-4";
             }
             //return RedirectToAction(nameof(Index));
             return View(userModel);
@@ -285,6 +340,65 @@ namespace WebApplication4.Controllers
         private double AgeSpan(DateTime birthDate)
         {
             return DateTime.Now.Subtract(birthDate).TotalDays;
+        }
+    }
+
+    // PASSWORD ENCRYPTION CLASSES
+    // REFERENCE: WWW.CODEPROJECT.COM
+    public static class SaltGenerator
+    {
+        private static RNGCryptoServiceProvider _cryptoServiceProvider = null;
+        private const int SALT_SIZE = 24;
+        static SaltGenerator()
+        {
+            _cryptoServiceProvider = new RNGCryptoServiceProvider();
+        }
+
+        public static string GetSaltString()
+        {
+            // TO STORE SALT BYTES
+            byte[] saltBytes = new byte[SALT_SIZE];
+
+            // GENERATE THE SALT
+            _cryptoServiceProvider.GetNonZeroBytes(saltBytes);
+
+            // CONVERT SALT TO STRING
+            string saltString = Encoding.ASCII.GetString(saltBytes);
+            return saltString;
+        }
+    }
+
+    public class HashGenerator
+    {
+        public string GetPasswordHashAndSalt(string password)
+        {
+            // SHA256 algorithm to 
+            // generate the hash from this salted password
+            SHA256 sha = new SHA256CryptoServiceProvider();
+            byte[] dataBytes = Encoding.ASCII.GetBytes(password);
+            byte[] resultBytes = sha.ComputeHash(dataBytes);
+
+            return Encoding.ASCII.GetString(resultBytes);
+        }
+    }
+
+    public class PasswordManager
+    {
+        HashGenerator _hashComputer = new HashGenerator();
+
+        public string GeneratePasswordHash(string plainTextPassword, out string salt)
+        {
+            salt = SaltGenerator.GetSaltString();
+
+            string finalString = plainTextPassword + salt;
+
+            return _hashComputer.GetPasswordHashAndSalt(finalString);
+        }
+
+        public bool IsPasswordMatch(string password, string salt, string hash)
+        {
+            string finalString = password + salt;
+            return hash == _hashComputer.GetPasswordHashAndSalt(finalString);
         }
     }
 }

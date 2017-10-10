@@ -29,6 +29,7 @@ namespace WebApplication4.Models
         [StringLength(50)]
         public string LastName { get; set; }
 
+        [Display(Name = "Profile Picture")]
         public byte[] ProfilePicture { get; set; }
 
         [Display(Name = "Birth Date")]
@@ -41,11 +42,16 @@ namespace WebApplication4.Models
         [DataType(DataType.EmailAddress)]
         public string Email { get; set; }
 
+        [NotMapped]
         [Required(ErrorMessage = "Password is required")]
         [Display(Name = "Password")]
         [StringLength(100, ErrorMessage ="Password must be 6 characters long", MinimumLength = 6)]
         [DataType(DataType.Password)]
         public string Password { get; set; }
+
+        public string PasswordSalt { get; set; }
+        public string PasswordHash { get; set; }
+
 
         [NotMapped]
         [Compare("Password", ErrorMessage ="Password does not match")]
