@@ -30,7 +30,7 @@ namespace WebApplication4.Models
         public string LastName { get; set; }
 
         [Display(Name = "Profile Picture")]
-        public byte[] ProfilePicture { get; set; }
+        public string ProfilePicture { get; set; }
 
         [Display(Name = "Birth Date")]
         [DataType(DataType.Date)]

@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.FileProviders;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,6 +12,7 @@ using System.Threading.Tasks;
 using System.Web;
 using WebApplication4.Data;
 using WebApplication4.Models;
+using WebApplication4.HelperClasses;
 
 namespace WebApplication4.Controllers
 {
@@ -27,6 +29,7 @@ namespace WebApplication4.Controllers
 
         // CREATE SELECTLIST TO DISPLAY ACCOUNT TYPES IN DROPDOWN LIST
         List<string> AccTypeList = new List<string> { "Business", "Personal" };
+
 
         public UserController(ApplicationDbContext context)
         {
@@ -65,7 +68,7 @@ namespace WebApplication4.Controllers
         // more details see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Register([Bind("acc_type,CompanyName,FirstName,LastName,ProfilePicture,BirthDate,Email,Password")] UserModel userModel)
+        public async Task<IActionResult> Register([Bind("acc_type,CompanyName,FirstName,LastName,ProfilePicture,BirthDate,Email,Password")] UserModel userModel, IFormFile file)
         {
             // CREATE SELECTLIST TO DISPLAY ACCOUNT TYPES IN DROPDOWN LIST WHEN THE VIEW IS REDISPLAYED WITH ERROR
             List<string> AccTypeList = new List<string> { "Business", "Personal" };
@@ -101,7 +104,7 @@ namespace WebApplication4.Controllers
                 else
                 {
                     // CHECK FOR USER'S AGE (18 YEARS ~ 6575 DAYS)
-                    var age = AgeSpan(userModel.BirthDate);
+                    var age = Utility.AgeSpan(userModel.BirthDate);
 
                     if (Math.Ceiling(age) <= 6575)
                     {
@@ -110,18 +113,21 @@ namespace WebApplication4.Controllers
                     }
                     else
                     {
-
-
-                        // SAVE PROFILE PICTURE
-                        /*
-                        string fileName = Path.GetFileNameWithoutExtension(userModel.ProfilePicture.ToString());
-                        string extension = Path.GetExtension(userModel.ProfilePicture.ToString());
-
-                        fileName = fileName + DateTime.Now.ToString("yymmssfff") + extension;
-                        userModel.FirstName = "~/wwwroot/ProfilePictures" + fileName;
-                        fileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory + "/wwwroot/ProfilePictures", fileName);
-                        userModel.ProfilePicture = fileName.ToString();
-                        */
+                        // RENAME IMAGE AND STORE IT TO THE SERVER DIRECTORY
+                        if (file != null)
+                        {
+                            //var fileName = Path.GetFileNameWithoutExtension(file.FileName);
+                            //var extension = Path.GetExtension(file.FileName);
+                            //fileName = fileName + DateTime.Now.ToString("yymmssfff") + extension;
+                            
+                            var fileName = Utility.GetProfilePictureFileName(file);
+                            userModel.ProfilePicture = fileName;
+                            var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot\\ProfilePicture", fileName);
+                            using (var stream = new FileStream(path, FileMode.Create))
+                            {
+                                await file.CopyToAsync(stream);
+                            }
+                        }
 
                         // SALT AND HASH PASSWORD BEFORE SAVING TO DATABASE
                         String passwordHash = pwdManager.GeneratePasswordHash(userModel.Password, out string salt);
@@ -225,6 +231,13 @@ namespace WebApplication4.Controllers
                 return NotFound();
             }
 
+            // FETCH PROFILE PICTURE INFORMATION
+            var fileName = userModel.ProfilePicture;
+            if (fileName != null)
+            {
+                ViewBag.ProfileSrc = fileName;
+            }
+
             //List<string> AccTypeList = new List<string> { "Business", "Personal" };
             ViewBag.AccType = new SelectList(AccTypeList, userModel.acc_type);
 
@@ -235,7 +248,7 @@ namespace WebApplication4.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ManageProfile([Bind("ID, acc_type, CompanyName, FirstName, LastName, ProfilePicture, BirthDate, Email")] UserModel userModel)
+        public async Task<IActionResult> ManageProfile([Bind("ID, acc_type, CompanyName, FirstName, LastName, ProfilePicture, BirthDate, Email")] UserModel userModel, IFormFile file)
         {
             // FETCH USER ID FROM SESSION TO GET THE DATABASE VALUE
             var UserID = HttpContext.Session.GetString(SessionKeyUserID);
@@ -284,7 +297,7 @@ namespace WebApplication4.Controllers
                 // WITH ANY OTHER USER EMAIL ADDRESS
                 var DbEmail = from e in _context.UserModel
                               where e.Email == userModel.Email &&
-                                            e.ID != Convert.ToInt32(HttpContext.Session.GetString(SessionKeyUserID))
+                                            e.ID != Convert.ToInt32(UserID)
                               select e.Email;
 
                 if (userModel.Email == DbEmail.FirstOrDefault())
@@ -297,17 +310,61 @@ namespace WebApplication4.Controllers
                 }
                 else
                 {
+                    // FETCH EXISTING PROFILE PICTURE NAME
+                    var existingProfilePicture = from p in _context.UserModel
+                                                 where p.ID == Convert.ToInt32(UserID)
+                                                 select p.ProfilePicture;
+
                     // CHECK FOR THE USER'S AGE (18 YEARS ~ 6575 DAYS)
-                    var Age = AgeSpan(userModel.BirthDate);
+                    var Age = Utility.AgeSpan(userModel.BirthDate);
 
                     if (Math.Ceiling(Age) <= 6575)
                     {
                         ViewBag.Message = "You should be 18 years or older to register.";
                         ViewBag.MessageCssClass = "alert-danger col-md-4";
+                        ViewBag.ProfileSrc = existingProfilePicture.FirstOrDefault();
                         return View();
                     }
                     else
                     {
+                        // RENAME IMAGE AND STORE IT TO THE SERVER DIRECTORY
+                        if (file != null)
+                        {
+                            // DELETE PREVIOUS FILE FROM DIRECTORY
+                            var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot\\ProfilePicture");
+
+                            if (existingProfilePicture.FirstOrDefault() != null)
+                            {
+                                path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot\\ProfilePicture", existingProfilePicture.FirstOrDefault());
+                                if (System.IO.File.Exists(path))
+                                {
+                                    System.IO.File.Delete(path);
+                                }
+
+                            }
+
+                            // UPDATE FILE NAME
+                            //var fileName = Path.GetFileNameWithoutExtension(file.FileName);
+                            //var extension = Path.GetExtension(file.FileName);
+                            //fileName = fileName + DateTime.Now.ToString("yymmssfff") + extension;
+
+                            var fileName = Utility.GetProfilePictureFileName(file);
+                            userModel.ProfilePicture = fileName;
+                            path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot\\ProfilePicture", fileName);
+                            using (var stream = new FileStream(path, FileMode.Create))
+                            {
+                                await file.CopyToAsync(stream);
+                            }
+                            // SEND FILENAME TO <IMG> TAG
+                            ViewBag.ProfileSrc = fileName;
+                        }
+                        else
+                        {
+                            // IF PROFILE PICTURE NOT UPLOADED, KEEP THE EXISITING FILENAME
+                            userModel.ProfilePicture = existingProfilePicture.FirstOrDefault();
+                            ViewBag.ProfileSrc = existingProfilePicture.FirstOrDefault();
+                        }
+
                         // UPDATE SESSION INFO FOR ANY CHANGES
                         // AND UPDATE THE DATABASE
                         HttpContext.Session.SetString(SessionKeyUserID, userModel.ID.ToString());
@@ -333,13 +390,6 @@ namespace WebApplication4.Controllers
             }
             //return RedirectToAction(nameof(Index));
             return View(userModel);
-        }
-
-        // METHOD TO CHECK USER'S AGE, 
-        // RETURNS TOTAL NUMBER OF DAYS BETWEEN TODAY AND USER'S BIRTHDAY 
-        private double AgeSpan(DateTime birthDate)
-        {
-            return DateTime.Now.Subtract(birthDate).TotalDays;
         }
     }
 

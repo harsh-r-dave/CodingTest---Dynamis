@@ -11,6 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 using WebApplication4.Data;
 using WebApplication4.Models;
 using WebApplication4.Services;
+using Microsoft.Extensions.FileProviders;
+using System.IO;
 
 namespace WebApplication4
 {
@@ -35,6 +37,11 @@ namespace WebApplication4
 
             // Add application services.
             services.AddTransient<IEmailSender, EmailSender>();
+
+            // File upload settings
+            services.AddSingleton<IFileProvider>(
+                new PhysicalFileProvider(
+                    Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")));
 
             services.AddMvc();
 
