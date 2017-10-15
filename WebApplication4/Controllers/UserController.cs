@@ -119,13 +119,22 @@ namespace WebApplication4.Controllers
                             //var fileName = Path.GetFileNameWithoutExtension(file.FileName);
                             //var extension = Path.GetExtension(file.FileName);
                             //fileName = fileName + DateTime.Now.ToString("yymmssfff") + extension;
-                            
-                            var fileName = Utility.GetProfilePictureFileName(file);
-                            userModel.ProfilePicture = fileName;
-                            var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot\\ProfilePicture", fileName);
-                            using (var stream = new FileStream(path, FileMode.Create))
+
+                            // CHECK THE SIZE OF IMAGE 1MB = 1000000 BYTES
+                            if (file.Length > 1000000)
                             {
-                                await file.CopyToAsync(stream);
+                                ViewBag.Message = "Image size should not exceed 1 MB";
+                                return View();
+                            }
+                            else
+                            {
+                                var fileName = Utility.GetProfilePictureFileName(file);
+                                userModel.ProfilePicture = fileName;
+                                var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot\\ProfilePicture", fileName);
+                                using (var stream = new FileStream(path, FileMode.Create))
+                                {
+                                    await file.CopyToAsync(stream);
+                                }
                             }
                         }
 
@@ -348,6 +357,13 @@ namespace WebApplication4.Controllers
                             //var extension = Path.GetExtension(file.FileName);
                             //fileName = fileName + DateTime.Now.ToString("yymmssfff") + extension;
 
+                            // CHECK THE SIZE OF IMAGE 1MB = 1000000 BYTES
+                            if (file.Length > 1000000)
+                            {
+                                ViewBag.Message = "Image size should not exceed 1 MB";
+                                ViewBag.ProfileSrc = existingProfilePicture.FirstOrDefault();
+                                return View(userModel);
+                            }
                             var fileName = Utility.GetProfilePictureFileName(file);
                             userModel.ProfilePicture = fileName;
                             path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot\\ProfilePicture", fileName);

@@ -13125,11 +13125,11 @@
       "hideWarningsAndErrors": true
     },
     "restore": {
-      "projectUniqueName": "C:\\Users\\harsh\\onedrive\\documents\\visual studio 2017\\Projects\\WebApplication4\\WebApplication4\\WebApplication4.csproj",
+      "projectUniqueName": "C:\\Users\\harsh\\OneDrive\\Documents\\Visual Studio 2017\\Projects\\WebApplication4\\WebApplication4\\WebApplication4.csproj",
       "projectName": "WebApplication4",
-      "projectPath": "C:\\Users\\harsh\\onedrive\\documents\\visual studio 2017\\Projects\\WebApplication4\\WebApplication4\\WebApplication4.csproj",
+      "projectPath": "C:\\Users\\harsh\\OneDrive\\Documents\\Visual Studio 2017\\Projects\\WebApplication4\\WebApplication4\\WebApplication4.csproj",
       "packagesPath": "C:\\Users\\harsh\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\harsh\\onedrive\\documents\\visual studio 2017\\Projects\\WebApplication4\\WebApplication4\\obj\\",
+      "outputPath": "C:\\Users\\harsh\\OneDrive\\Documents\\Visual Studio 2017\\Projects\\WebApplication4\\WebApplication4\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
